@@ -2,6 +2,7 @@ use wasm_bindgen::prelude::*;
 
 mod container;
 mod id;
+mod kv;
 mod namespace;
 mod sql_storage;
 mod state;
@@ -10,6 +11,7 @@ mod transaction;
 
 pub use container::*;
 pub use id::*;
+pub use kv::*;
 pub use namespace::*;
 pub use sql_storage::*;
 pub use state::*;

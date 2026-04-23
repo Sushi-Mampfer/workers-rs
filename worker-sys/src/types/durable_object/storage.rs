@@ -1,11 +1,14 @@
 use wasm_bindgen::prelude::*;
 
-use crate::types::DurableObjectTransaction;
+use crate::types::{DurableObjectStorageKV, DurableObjectTransaction};
 
 #[wasm_bindgen]
 extern "C" {
     #[wasm_bindgen(extends=js_sys::Object)]
     pub type DurableObjectStorage;
+
+    #[wasm_bindgen(method, catch, getter)]
+    pub fn kv(this: &DurableObjectStorage) -> Result<DurableObjectStorageKV, JsValue>;
 
     #[wasm_bindgen(method, catch)]
     pub fn get(this: &DurableObjectStorage, key: &str) -> Result<js_sys::Promise, JsValue>;

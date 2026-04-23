@@ -30,7 +30,7 @@ use wasm_bindgen::{prelude::*, JsCast};
 use worker_sys::{
     DurableObject as EdgeDurableObject, DurableObjectId,
     DurableObjectNamespace as EdgeObjectNamespace, DurableObjectState, DurableObjectStorage,
-    DurableObjectTransaction,
+    DurableObjectStorageKV, DurableObjectTransaction,
 };
 // use wasm_bindgen_futures::future_to_promise;
 use wasm_bindgen_futures::{future_to_promise, JsFuture};
@@ -248,8 +248,8 @@ impl State {
         }
     }
 
-    /// Contains methods for accessing persistent storage via the transactional storage API. See
-    /// [Transactional Storage API](https://developers.cloudflare.com/workers/runtime-apis/durable-objects#transactional-storage-api) for a detailed reference.
+    /// Contains methods for accessing persistent storage via the SQLite-backed storage API. See
+    /// [SQLite-backed Durable Object Storage](https://developers.cloudflare.com/durable-objects/api/sqlite-storage-api/) for a detailed reference.
     pub fn storage(&self) -> Storage {
         Storage {
             inner: self.inner.storage().unwrap(),
@@ -327,7 +327,7 @@ impl From<DurableObjectState> for State {
     }
 }
 
-/// Access a Durable Object's Storage API. Each method is implicitly wrapped inside a transaction,
+/// Access a Durable Object's Synchronus Storage API. Each method is implicitly wrapped inside a transaction,
 /// such that its results are atomic and isolated from all other storage operations, even when
 /// accessing multiple key-value pairs.
 pub struct Storage {
@@ -341,6 +341,14 @@ impl core::fmt::Debug for Storage {
 }
 
 impl Storage {
+    /// Contains methods for accessing kv storage via the synchronus API. See
+    /// [Synchronous KV API](https://developers.cloudflare.com/workers/runtime-apis/durable-objects#transactional-storage-api) for a detailed reference.
+    pub async fn kv(&self) -> KVStorage {
+        KVStorage {
+            inner: self.inner.kv().unwrap(),
+        }
+    }
+
     /// Retrieves the value associated with the given key. The type of the returned value will be
     /// whatever was previously written for the key.
     ///
@@ -568,6 +576,75 @@ impl Storage {
     // Add new method to access SQLite APIs
     pub fn sql(&self) -> crate::sql::SqlStorage {
         crate::sql::SqlStorage::new(self.inner.sql())
+    }
+}
+
+/// Access a Durable Object's KV Storage API.
+pub struct KVStorage {
+    inner: DurableObjectStorageKV,
+}
+
+impl core::fmt::Debug for KVStorage {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("KVStorage").finish()
+    }
+}
+
+impl KVStorage {
+    /// Retrieves the value associated with the given key. The type of the returned value will be
+    /// whatever was previously written for the key.
+    ///
+    /// Returns `Ok(None)` if the key does not exist.
+    pub fn get<T: DeserializeOwned>(&self, key: &str) -> Result<Option<T>> {
+        let res = match self.inner.get(key) {
+            // If we successfully retrived `undefined`, that means the key doesn't exist
+            Ok(val) if val.is_undefined() => Ok(None),
+            // Otherwise deserialize whatever we successfully received
+            Ok(val) => {
+                serde_wasm_bindgen::from_value(val).map_err(|e| JsValue::from(e.to_string()))
+            }
+            // Forward any error, rewrap to make the typechecker happy
+            Err(e) => Err(e),
+        };
+
+        res.map_err(Error::from)
+    }
+
+    /// Stores the value and associates it with the given key.
+    pub fn put<T: Serialize>(&self, key: &str, value: T) -> Result<()> {
+        self.put_raw(key, serde_wasm_bindgen::to_value(&value)?)
+    }
+
+    pub fn put_raw(&self, key: &str, value: impl Into<JsValue>) -> Result<()> {
+        self.inner.put(key, value.into()).map_err(Error::from)
+    }
+
+    /// Deletes the key and associated value. Returns true if the key existed or false if it didn't.
+    pub fn delete(&self, key: &str) -> Result<bool> {
+        self.inner.delete(key).map_err(Error::from)
+    }
+
+    /// Returns all keys and values associated with the current Durable Object in ascending
+    /// lexicographic sorted order.
+    ///
+    /// Be aware of how much data may be stored in your Durable Object before calling this version
+    /// of list without options, because it will all be loaded into the Durable Object's memory,
+    /// potentially hitting its [limit](https://developers.cloudflare.com/workers/platform/limits#durable-objects-limits).
+    /// If that is a concern, use the alternate `list_with_options()` method.
+    pub fn list(&self) -> Result<Map> {
+        self.inner
+            .list()
+            .and_then(|jsv| jsv.dyn_into())
+            .map_err(Error::from)
+    }
+
+    /// Returns keys associated with the current Durable Object according to the parameters in the
+    /// provided options object.
+    pub fn list_with_options(&self, opts: ListOptions<'_>) -> Result<Map> {
+        self.inner
+            .list_with_options(serde_wasm_bindgen::to_value(&opts)?.into())
+            .and_then(|jsv| jsv.dyn_into())
+            .map_err(Error::from)
     }
 }
 
