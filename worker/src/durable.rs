@@ -24,7 +24,7 @@ use crate::{
 
 use chrono::{DateTime, Utc};
 use futures_util::Future;
-use js_sys::{Array, Iterable, Map, Number, Object};
+use js_sys::{Array, Map, Number, Object};
 use serde::{de::DeserializeOwned, Serialize};
 use wasm_bindgen::{prelude::*, JsCast};
 use worker_sys::{
@@ -327,7 +327,7 @@ impl From<DurableObjectState> for State {
     }
 }
 
-/// Access a Durable Object's Synchronus Storage API. Each method is implicitly wrapped inside a transaction,
+/// Access a Durable Object's Storage API. Each method is implicitly wrapped inside a transaction,
 /// such that its results are atomic and isolated from all other storage operations, even when
 /// accessing multiple key-value pairs.
 pub struct Storage {
@@ -342,7 +342,7 @@ impl core::fmt::Debug for Storage {
 
 impl Storage {
     /// Contains methods for accessing kv storage via the synchronus API. See
-    /// [Synchronous KV API](https://developers.cloudflare.com/workers/runtime-apis/durable-objects#transactional-storage-api) for a detailed reference.
+    /// [Synchronous KV API](https://developers.cloudflare.com/durable-objects/api/sqlite-storage-api/#synchronous-kv-api) for a detailed reference.
     pub fn kv(&self) -> KVStorage {
         KVStorage {
             inner: self.inner.kv().unwrap(),
