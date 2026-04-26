@@ -24,7 +24,7 @@ use crate::{
 
 use chrono::{DateTime, Utc};
 use futures_util::Future;
-use js_sys::{Map, Number, Object};
+use js_sys::{Array, Iterable, Map, Number, Object};
 use serde::{de::DeserializeOwned, Serialize};
 use wasm_bindgen::{prelude::*, JsCast};
 use worker_sys::{
@@ -343,7 +343,7 @@ impl core::fmt::Debug for Storage {
 impl Storage {
     /// Contains methods for accessing kv storage via the synchronus API. See
     /// [Synchronous KV API](https://developers.cloudflare.com/workers/runtime-apis/durable-objects#transactional-storage-api) for a detailed reference.
-    pub async fn kv(&self) -> KVStorage {
+    pub fn kv(&self) -> KVStorage {
         KVStorage {
             inner: self.inner.kv().unwrap(),
         }
@@ -631,19 +631,19 @@ impl KVStorage {
     /// of list without options, because it will all be loaded into the Durable Object's memory,
     /// potentially hitting its [limit](https://developers.cloudflare.com/workers/platform/limits#durable-objects-limits).
     /// If that is a concern, use the alternate `list_with_options()` method.
-    pub fn list(&self) -> Result<Map> {
+    pub fn list(&self) -> Result<Array> {
         self.inner
             .list()
-            .and_then(|jsv| jsv.dyn_into())
+            .and_then(|jsv| Ok(Array::from(&jsv)))
             .map_err(Error::from)
     }
 
     /// Returns keys associated with the current Durable Object according to the parameters in the
     /// provided options object.
-    pub fn list_with_options(&self, opts: ListOptions<'_>) -> Result<Map> {
+    pub fn list_with_options(&self, opts: ListOptions<'_>) -> Result<Array> {
         self.inner
             .list_with_options(serde_wasm_bindgen::to_value(&opts)?.into())
-            .and_then(|jsv| jsv.dyn_into())
+            .and_then(|jsv| Ok(Array::from(&jsv)))
             .map_err(Error::from)
     }
 }
